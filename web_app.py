@@ -646,8 +646,9 @@ async def translate_transcript(transcript: dict, target_languages: list, log_fn,
                 "text": translated,
                 "mode": translation_mode,
             }
-            # Also produce segment-aligned translations for dubbing (natural mode only)
-            if translation_mode == "natural" and transcript.get("segments"):
+            # Also produce segment-aligned translations for dubbing
+            # (works in both natural and google mode — LLM with Google fallback)
+            if transcript.get("segments"):
                 try:
                     seg_translations = await translate_segments(
                         transcript["segments"], lang_code,
@@ -1052,8 +1053,10 @@ async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: st
         filter_parts.append(f"[{idx+1}:a]adelay={delay_ms}|{delay_ms}[d{idx}]")
 
     # Mix all delayed clips + base
+    # normalize=0 prevents amix from dividing volume by number of inputs
+    # (segments are non-overlapping, so no clipping risk)
     mix_inputs = "[0:a]" + "".join(f"[d{idx}]" for idx in range(len(seg_clips)))
-    mix_inputs += f"amix=inputs={len(seg_clips)+1}:duration=longest:dropout_transition=0"
+    mix_inputs += f"amix=inputs={len(seg_clips)+1}:duration=longest:dropout_transition=0:normalize=0"
     filter_complex = ";".join(filter_parts) + ";" + mix_inputs
 
     final_path = str(output_dir / f"dub_{lang_code}.wav")
@@ -1353,7 +1356,7 @@ async def process_job(job_id: str, request: ProcessRequest):
                 saved[f"audio_{lang_code}"] = audio_path
 
         # Step 4b: Compose dubbed videos (segment-synced, if enabled)
-        if request.dub_video and request.generate_audio and request.translation_mode == "natural":
+        if request.dub_video and request.generate_audio:
             job["dubbed_videos"] = {}
             save_job(job_id)
             for lang_code, trans_data in translations.items():
