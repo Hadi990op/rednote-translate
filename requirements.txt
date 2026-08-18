@@ -1,0 +1,30 @@
+# RedNote Translate — Python Dependencies
+#
+# Install with:  pip install -r requirements.txt
+# For GPU acceleration (optional, significantly faster transcription):
+#   pip install -r requirements.txt  # CPU default
+#   CMAKE_ARGS="-DGGML_CUDA=on" pip install -r requirements.txt  # NVIDIA GPU
+
+# ─── Web Framework ──────────────────────────────────────────────────────────
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+
+# ─── Speech-to-Text (Whisper) ───────────────────────────────────────────────
+faster-whisper>=1.0.0          # CT2-based Whisper, 4x faster than openai-whisper
+
+# ─── Translation ───────────────────────────────────────────────────────────
+deep-translator>=1.11.0        # Google Translate wrapper (free, no API key)
+openai>=1.0.0                  # For Natural Drama AI mode (OpenAI-compatible API)
+
+# ─── Text-to-Speech ─────────────────────────────────────────────────────────
+edge-tts>=7.0.0                # Microsoft Edge Neural TTS (free, no API key)
+httpx>=0.24.0                  # HTTP client for Fish Audio API calls
+
+# ─── Video Download ─────────────────────────────────────────────────────────
+yt-dlp>=2024.0.0               # Video extraction (RedNote/XiaoHongShu support)
+
+# ─── Data Validation ───────────────────────────────────────────────────────
+pydantic>=2.0.0                # Used by FastAPI for request/response models
+
+# ─── Utilities ──────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0           # Load .env for API keys (optional)

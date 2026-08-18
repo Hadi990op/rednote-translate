@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RedNote Translate — Download · Transcribe · Translate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0a0a;
+  --surface: #1a1515;
+  --surface-2: #221c1c;
+  --border: #332a2a;
+  --text: #f5eceb;
+  --text-muted: #9a8d8d;
+  --accent: #ff2442;
+  --accent-hover: #ff4d68;
+  --accent-soft: rgba(255, 36, 66, 0.12);
+  --green: #4ade80;
+  --yellow: #fbbf24;
+  --radius: 14px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Background gradient ─── */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at 20% 0%, rgba(255,36,66,0.08), transparent 50%),
+              radial-gradient(ellipse at 80% 100%, rgba(255,36,66,0.05), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Header ─── */
+header {
+  text-align: center;
+  padding: 2rem 0 2.5rem;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.logo-mark {
+  width: 44px; height: 44px;
+  background: var(--accent);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+  box-shadow: 0 4px 20px rgba(255,36,66,0.3);
+}
+
+.logo-text { color: var(--text); }
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+/* ─── Form Card ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  transition: border-color 0.3s;
+}
+
+.card:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+input[type="text"]::placeholder { color: #5a4d4d; }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+@media (max-width: 600px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239a8d8d' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ─── Language chips ─── */
+.lang-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.chip {
+  padding: 0.5rem 0.9rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.chip:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ─── Submit button ─── */
+.btn-primary {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 1rem 2rem;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255,36,66,0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Progress section ─── */
+.progress-section {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.progress-section.active { display: block; animation: slideIn 0.3s ease; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.progress-step {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progress-percent {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 100px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  border-radius: 100px;
+  transition: width 0.5s ease;
+  width: 0%;
+}
+
+.progress-message {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.progress-logs {
+  max-height: 150px;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.log-entry {
+  padding: 0.25rem 0;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.log-entry:last-child { border-bottom: none; }
+.log-entry .log-time { color: #5a4d4d; }
+.log-entry .log-step { color: var(--accent); font-weight: 500; }
+
+/* ─── Live Preview section ─── */
+.live-preview {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  animation: slideIn 0.3s ease;
+}
+.live-preview.active { display: block; }
+
+.live-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.live-preview-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.live-preview-step {
+  font-size: 0.78rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: auto;
+}
+.live-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: livePulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+}
+
+.live-video-info {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.live-video-info span:first-child {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.live-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+}
+
+.live-transcript {
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.live-transcript .seg {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.live-transcript .seg:last-child { border-bottom: none; }
+.live-transcript .seg-time {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  margin-right: 0.5rem;
+}
+
+.live-translations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.live-translation-card {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 1rem;
+  border-left: 3px solid var(--accent);
+  animation: fadeInUp 0.3s ease;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.live-translation-card .lt-lang {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+.live-translation-card .lt-text {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text);
+  max-height: 150px;
+  overflow-y: auto;
+}
+.live-translation-card .lt-pending {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
+.live-audio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.live-audio-item {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  animation: fadeInUp 0.3s ease;
+}
+.live-audio-item .la-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+.live-audio-item audio {
+  width: 100%;
+  height: 32px;
+}
+
+/* ─── Results section ─── */
+.results {
+  display: none;
+}
+
+.results.active { display: block; animation: slideIn 0.4s ease; }
+
+.video-info {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.video-info-icon {
+  width: 56px; height: 56px;
+  background: var(--accent-soft);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.video-info-content h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+
+.video-info-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.video-info-meta span { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.tag {
+  padding: 0.2rem 0.6rem;
+  background: var(--surface-2);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ─── Tabs ─── */
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border);
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 0.75rem 1.25rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.tab:hover { color: var(--text); }
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ─── Transcript display ─── */
+.transcript-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.transcript-segment {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.transcript-segment:last-child { border-bottom: none; }
+
+.segment-time {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.segment-text {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.full-text-box {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+/* ─── Translation display ─── */
+.translation-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.translation-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.translation-text {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+/* ─── Download buttons ─── */
+.downloads {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.btn-download {
+  padding: 0.6rem 1.2rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s;
+}
+
+.btn-download:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ─── Error display ─── */
+.error-box {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.error-box h3 {
+  color: var(--accent);
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.error-box p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ─── Step icons ─── */
+.step-spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.step-check {
+  color: var(--green);
+  font-size: 1.2rem;
+}
+
+/* ─── Footer ─── */
+footer {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  .container { padding: 1rem; }
+  .card { padding: 1.25rem; }
+  .video-info { flex-direction: column; }
+  .transcript-segment { grid-template-columns: 1fr; gap: 0.2rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">📕</div>
+    <span class="logo-text">RedNote Translate</span>
+  </div>
+  <p class="subtitle">Download · Transcribe · Translate — all from the browser</p>
+</header>
+
+<!-- Form Card -->
+<div class="card">
+  <label for="url">RedNote Video URL</label>
+  <input type="text" id="url" placeholder="https://www.xiaohongshu.com/explore/XXXX?xsec_token=YYYY" autocomplete="off">
+
+  <div class="form-row">
+    <div>
+      <label for="model">Whisper Model</label>
+      <select id="model">
+        <option value="tiny">Tiny — Fastest (low memory)</option>
+        <option value="base" selected>Base — Fast (recommended for this server)</option>
+        <option value="small">Small — Balanced</option>
+        <option value="medium">Medium — High accuracy (may OOM)</option>
+        <option value="large-v3">Large v3 — Best accuracy (may OOM)</option>
+      </select>
+      <small style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 4px; display: block;">
+        ⚠️ This server has limited RAM. Use Tiny/Base for best reliability.
+      </small>
+    </div>
+    <div>
+      <label>Languages</label>
+      <div class="lang-chips" id="lang-chips">
+        <!-- chips inserted by JS -->
+      </div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label for="translation-mode">Translation Mode</label>
+      <select id="translation-mode">
+        <option value="google" selected>⚡ Google Translate — Fast, basic</option>
+        <option value="natural">🎭 Natural Drama AI — Slow, natural dialogue</option>
+      </select>
+      <small style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 4px; display: block;" id="translation-mode-hint">
+        ⚡ Fast machine translation. Accurate meaning but robotic phrasing.
+      </small>
+    </div>
+    <div>
+      <label for="voice-gender">Voice Gender (for audio)</label>
+      <select id="voice-gender">
+        <option value="female" selected>Female Voice</option>
+        <option value="male">Male Voice</option>
+      </select>
+    </div>
+    <div>
+      <label for="tts-engine">Voice Engine</label>
+      <select id="tts-engine">
+        <option value="fish" selected>🐟 Fish Audio S2.1 Pro — Human-quality</option>
+        <option value="edge">⚡ Edge Neural TTS — Fast fallback</option>
+      </select>
+      <small style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 4px; display: block;" id="tts-engine-hint">
+        🐟 83 languages, natural human voices. Cloud API.
+      </small>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div style="display:flex; align-items:center; gap:0.5rem; padding-top:0.5rem;">
+      <input type="checkbox" id="generate-audio" checked style="width:18px; height:18px; cursor:pointer;">
+      <label for="generate-audio" style="cursor:pointer; margin:0;">🔊 Generate voice audio (natural TTS)</label>
+    </div>
+    <div></div>
+  </div>
+
+  <div class="form-row">
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <input type="checkbox" id="clone-voice" style="width:18px; height:18px; cursor:pointer;">
+      <label for="clone-voice" style="cursor:pointer; margin:0;">🎙️ Clone voice from original video</label>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <input type="checkbox" id="emotion-mode" style="width:18px; height:18px; cursor:pointer;">
+      <label for="emotion-mode" style="cursor:pointer; margin:0;">🎭 Emotion mode (drama delivery)</label>
+    </div>
+  </div>
+
+  <small style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 4px; display: block;" id="voice-clone-hint">
+    🎙️ Clones the speaker's voice from the original video audio — translations will sound like the original person. 🎭 Emotion mode adds expressive delivery (excited, sad, whispering, shouting) for drama voice-over. Both work with Fish Audio engine.
+  </small>
+
+  <button class="btn-primary" id="submit-btn" onclick="startProcessing()">
+    <span>Start Processing</span>
+    <span>→</span>
+  </button>
+</div>
+
+<!-- Progress Section -->
+<div class="progress-section" id="progress-section">
+  <div class="progress-header">
+    <span class="progress-step" id="progress-step">Initializing...</span>
+    <span class="progress-percent" id="progress-percent">0%</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+  <p class="progress-message" id="progress-message">Waiting to start...</p>
+  <div class="progress-logs" id="progress-logs"></div>
+</div>
+
+<!-- Live Preview Section (shows during processing) -->
+<div class="live-preview" id="live-preview">
+  <div class="live-preview-header">
+    <span class="live-pulse"></span>
+    <h3>Live Preview</h3>
+    <span class="live-preview-step" id="live-preview-step"></span>
+  </div>
+
+  <!-- Video info (appears after download) -->
+  <div id="live-video-info" style="display:none;" class="live-video-info">
+    <span id="live-video-title"></span>
+    <span id="live-video-author" style="color:rgba(255,255,255,0.5); font-size:0.85rem;"></span>
+  </div>
+
+  <!-- Transcript (appears after transcription) -->
+  <div id="live-transcript-section" style="display:none;">
+    <div class="live-section-label">🀄 Original Transcript</div>
+    <div id="live-transcript" class="live-transcript"></div>
+  </div>
+
+  <!-- Translations (appear incrementally) -->
+  <div id="live-translations-section" style="display:none;">
+    <div class="live-section-label">🌍 Translations</div>
+    <div id="live-translations" class="live-translations"></div>
+  </div>
+
+  <!-- Audio (appears as TTS generates) -->
+  <div id="live-audio-section" style="display:none;">
+    <div class="live-section-label">🔊 Voice Audio</div>
+    <div id="live-audio" class="live-audio-list"></div>
+  </div>
+</div>
+
+<!-- Error Section -->
+<div class="error-box" id="error-section" style="display:none;">
+  <h3>⚠️ Error</h3>
+  <p id="error-message"></p>
+</div>
+
+<!-- Results Section -->
+<div class="results" id="results-section">
+  <!-- Video Info -->
+  <div class="video-info">
+    <div class="video-info-icon">🎬</div>
+    <div class="video-info-content">
+      <h3 id="result-title"></h3>
+      <div class="video-info-meta">
+        <span>👤 <span id="result-author"></span></span>
+        <span>📦 <span id="result-size"></span></span>
+        <span>⏱️ <span id="result-duration"></span></span>
+        <span>📝 <span id="result-segments"></span> segments</span>
+      </div>
+      <div class="tags" id="result-tags"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs"></div>
+
+  <!-- Tab Content -->
+  <div id="tab-content"></div>
+
+  <!-- Downloads -->
+  <div class="downloads" id="downloads"></div>
+</div>
+
+<!-- Footer -->
+<footer>
+  Powered by <a href="https://github.com/JoeanAmier/XHS-Downloader" target="_blank">XHS-Downloader</a> ·
+  <a href="https://github.com/SYSTRAN/faster-whisper" target="_blank">faster-whisper</a> ·
+  Google Translate
+</footer>
+
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────
+let selectedLangs = new Set(['en', 'hi']);
+let allLangs = {};
+let allModels = {};
+let currentJobId = null;
+
+// ─── Init: fetch config ─────────────────────────────────────────────
+async function init() {
+  try {
+    const res = await fetch('api/config');
+    const data = await res.json();
+    allLangs = data.languages;
+    allModels = data.models;
+    renderLangChips();
+  } catch (e) {
+    console.error('Failed to load config:', e);
+  }
+
+  // Translation mode hint updater
+  const modeSelect = document.getElementById('translation-mode');
+  const modeHint = document.getElementById('translation-mode-hint');
+  const hints = {
+    'google': '⚡ Fast machine translation. Accurate meaning but robotic phrasing.',
+    'natural': '🎭 AI understands context, emotion & drama tone. Natural spoken dialogue. Slower (~30s per language).',
+  };
+  modeSelect.addEventListener('change', () => {
+    modeHint.textContent = hints[modeSelect.value] || '';
+  });
+
+  // TTS engine hint updater
+  const ttsSelect = document.getElementById('tts-engine');
+  const ttsHint = document.getElementById('tts-engine-hint');
+  const ttsHints = {
+    'fish': '🐟 83 languages, natural human voices. Cloud API. ~90ms latency. Supports voice cloning & emotion tags.',
+    'edge': '⚡ Fast local TTS. 300+ voices. More robotic but reliable. No voice cloning or emotion tags.',
+  };
+  ttsSelect.addEventListener('change', () => {
+    ttsHint.textContent = ttsHints[ttsSelect.value] || '';
+    // Disable cloning/emotion options if not Fish Audio
+    const isFish = ttsSelect.value === 'fish';
+    const cloneChk = document.getElementById('clone-voice');
+    const emoChk = document.getElementById('emotion-mode');
+    const cloneHint = document.getElementById('voice-clone-hint');
+    if (!isFish) {
+      cloneChk.checked = false;
+      emoChk.checked = false;
+      cloneHint.textContent = '⚠️ Voice cloning and emotion mode require Fish Audio engine.';
+    } else {
+      cloneHint.textContent = '🎙️ Clones the speaker\'s voice from the original video audio — translations will sound like the original person. 🎭 Emotion mode adds expressive delivery (excited, sad, whispering, shouting) for drama voice-over. Both work with Fish Audio engine.';
+    }
+  });
+}
+
+function renderLangChips() {
+  const container = document.getElementById('lang-chips');
+  container.innerHTML = '';
+  // Show popular languages first
+  const popular = ['en', 'hi', 'ur', 'es', 'fr', 'ar', 'ja', 'ko', 'ru', 'pt', 'de', 'id', 'vi', 'th'];
+  const sorted = [...popular, ...Object.keys(allLangs).filter(k => !popular.includes(k))];
+  for (const code of sorted) {
+    if (!allLangs[code]) continue;
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (selectedLangs.has(code) ? ' active' : '');
+    chip.textContent = allLangs[code];
+    chip.onclick = () => {
+      if (selectedLangs.has(code)) {
+        if (selectedLangs.size > 1) selectedLangs.delete(code);
+      } else {
+        selectedLangs.add(code);
+      }
+      renderLangChips();
+    };
+    container.appendChild(chip);
+  }
+}
+
+// ─── Start processing ───────────────────────────────────────────────
+async function startProcessing() {
+  const url = document.getElementById('url').value.trim();
+  if (!url) { alert('Please enter a RedNote URL'); return; }
+  if (selectedLangs.size === 0) { alert('Select at least one language'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="step-spinner"></span> <span>Processing...</span>';
+
+  // Show progress
+  document.getElementById('progress-section').classList.add('active');
+  document.getElementById('results-section').classList.remove('active');
+  document.getElementById('error-section').style.display = 'none';
+  document.getElementById('progress-logs').innerHTML = '';
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('progress-percent').textContent = '0%';
+  document.getElementById('progress-step').textContent = 'Starting...';
+  document.getElementById('progress-message').textContent = 'Queuing job...';
+
+  // Reset live preview
+  document.getElementById('live-preview').classList.remove('active');
+  document.getElementById('live-video-info').style.display = 'none';
+  document.getElementById('live-transcript-section').style.display = 'none';
+  document.getElementById('live-translations-section').style.display = 'none';
+  document.getElementById('live-audio-section').style.display = 'none';
+  document.getElementById('live-transcript').innerHTML = '';
+  document.getElementById('live-translations').innerHTML = '';
+  document.getElementById('live-audio').innerHTML = '';
+  // Remove clone status if present
+  const cloneStatus = document.getElementById('live-clone-status');
+  if (cloneStatus) cloneStatus.remove();
+
+  try {
+    const res = await fetch('api/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: url,
+        languages: [...selectedLangs],
+        model: document.getElementById('model').value,
+        voice_gender: document.getElementById('voice-gender').value,
+        generate_audio: document.getElementById('generate-audio').checked,
+        translation_mode: document.getElementById('translation-mode').value,
+        tts_engine: document.getElementById('tts-engine').value,
+        clone_voice: document.getElementById('clone-voice').checked,
+        emotion_mode: document.getElementById('emotion-mode').checked,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to start processing');
+    }
+
+    const data = await res.json();
+    currentJobId = data.job_id;
+    pollStatus(currentJobId);
+  } catch (e) {
+    showError(e.message);
+    resetButton();
+  }
+}
+
+// ─── Poll status via SSE ────────────────────────────────────────────
+function pollStatus(jobId) {
+  const evtSource = new EventSource(`api/status/${jobId}`);
+
+  evtSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    // Update progress
+    document.getElementById('progress-fill').style.width = data.progress + '%';
+    document.getElementById('progress-percent').textContent = data.progress + '%';
+    if (data.step) {
+      const stepLabels = {
+        'download': '📥 Downloading',
+        'transcribe': '🎤 Transcribing',
+        'translate': '🌍 Translating',
+        'tts': '🔊 Generating Voice',
+      };
+      document.getElementById('progress-step').textContent = stepLabels[data.step] || data.step;
+    }
+    if (data.message) {
+      document.getElementById('progress-message').textContent = data.message;
+    }
+
+    // Append logs
+    if (data.new_logs) {
+      const logsEl = document.getElementById('progress-logs');
+      for (const log of data.new_logs) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        const t = new Date(log.time * 1000).toLocaleTimeString();
+        entry.innerHTML = `<span class="log-time">${t}</span> <span class="log-step">[${log.step}]</span> ${log.message}`;
+        logsEl.appendChild(entry);
+      }
+      logsEl.scrollTop = logsEl.scrollHeight;
+    }
+
+    // Live preview updates during processing
+    if (data.status === 'processing') {
+      updateLivePreview(data);
+    }
+
+    // Completed
+    if (data.status === 'completed') {
+      evtSource.close();
+      document.getElementById('live-preview').classList.remove('active');
+      showResults(data);
+      resetButton();
+      document.getElementById('progress-section').classList.remove('active');
+    }
+
+    // Failed
+    if (data.status === 'failed') {
+      evtSource.close();
+      document.getElementById('live-preview').classList.remove('active');
+      showError(data.error || 'Processing failed');
+      resetButton();
+      document.getElementById('progress-section').classList.remove('active');
+    }
+  };
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    // Don't show error if we already have results
+    if (!document.getElementById('results-section').classList.contains('active')) {
+      // Check if job still exists (server may have restarted)
+      fetch(`api/jobs`).then(r => r.json()).then(jobList => {
+        const job = jobList.find(j => j.id === jobId);
+        if (!job) {
+          // Job lost entirely — server restarted and didn't persist
+          showError('Connection lost. The server may have restarted. Please try again with a smaller model (tiny/base).');
+          resetButton();
+          document.getElementById('progress-section').classList.remove('active');
+        } else if (job.status === 'failed') {
+          showError('Processing failed — the server ran out of memory. Try again with a smaller model (tiny/base).');
+          resetButton();
+          document.getElementById('progress-section').classList.remove('active');
+        } else if (job.status === 'completed') {
+          // Job actually completed, reconnect to get results
+          if (currentJobId === jobId) pollStatus(jobId);
+        } else {
+          // Still processing or queued — reconnect after delay
+          setTimeout(() => {
+            if (currentJobId === jobId) pollStatus(jobId);
+          }, 2000);
+        }
+      }).catch(() => {
+        // Can't reach server at all, retry
+        setTimeout(() => {
+          if (currentJobId === jobId) pollStatus(jobId);
+        }, 2000);
+      });
+    }
+  };
+}
+
+// ─── Show results ──────────────────────────────────────────────────
+function showResults(data) {
+  const section = document.getElementById('results-section');
+  section.classList.add('active');
+
+  // Video info
+  const vi = data.video_info || {};
+  document.getElementById('result-title').textContent = vi.title || 'Untitled';
+  document.getElementById('result-author').textContent = vi.author || 'Unknown';
+  document.getElementById('result-size').textContent = (vi.file_size_mb || 0) + ' MB';
+  document.getElementById('result-duration').textContent = (data.transcript?.duration || 0) + 's';
+  document.getElementById('result-segments').textContent = data.transcript?.segments?.length || 0;
+
+  // Tags
+  const tagsEl = document.getElementById('result-tags');
+  tagsEl.innerHTML = '';
+  if (vi.tags) {
+    for (const tag of vi.tags.split(/\s+/).filter(Boolean)) {
+      const el = document.createElement('span');
+      el.className = 'tag';
+      el.textContent = '#' + tag;
+      tagsEl.appendChild(el);
+    }
+  }
+
+  // Translation mode badge (check from any translation entry)
+  const firstTrans = Object.values(data.translations || {})[0];
+  const transMode = firstTrans?.mode || 'google';
+  const modeBadge = document.createElement('span');
+  modeBadge.style.cssText = 'font-size:0.7rem; padding:2px 8px; border-radius:4px; margin-left:8px; vertical-align:middle;';
+  if (transMode === 'natural') {
+    modeBadge.style.background = 'rgba(168,85,247,0.2)';
+    modeBadge.style.color = '#c084fc';
+    modeBadge.textContent = '🎭 Natural Drama AI';
+  } else {
+    modeBadge.style.background = 'rgba(100,181,246,0.15)';
+    modeBadge.style.color = '#64b5f6';
+    modeBadge.textContent = '⚡ Google Translate';
+  }
+  tagsEl.appendChild(modeBadge);
+
+  // Build tabs
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = '';
+  const contentEl = document.getElementById('tab-content');
+  contentEl.innerHTML = '';
+
+  const tabs = [];
+
+  // Original transcript tab
+  tabs.push({
+    label: '🀄 Original (Chinese)',
+    render: () => {
+      let html = '<div class="transcript-content">';
+      if (data.transcript?.segments?.length) {
+        for (const seg of data.transcript.segments) {
+          html += `<div class="transcript-segment">
+            <span class="segment-time">${formatTime(seg.start)} → ${formatTime(seg.end)}</span>
+            <span class="segment-text">${escapeHtml(seg.text)}</span>
+          </div>`;
+        }
+      }
+      html += `<div class="full-text-box">${escapeHtml(data.transcript?.full_text || 'No speech detected')}</div>`;
+      html += '</div>';
+      return html;
+    }
+  });
+
+  // Translation tabs
+  if (data.translations) {
+    for (const [code, t] of Object.entries(data.translations)) {
+      if (t.text) {
+        const audioUrl = data.audio_files && data.audio_files[code] ? data.audio_files[code] : null;
+        tabs.push({
+          label: `🌍 ${t.language}`,
+          render: () => {
+            let html = `<div class="translation-box">
+              <div class="translation-header">Translated to ${t.language}</div>
+              <div class="translation-text">${escapeHtml(t.text)}</div>`;
+            if (audioUrl) {
+              html += `<div style="margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.1);">
+                <div style="font-size:0.85rem; color:rgba(255,255,255,0.5); margin-bottom:0.5rem;">🔊 Natural Voice (Microsoft Edge Neural TTS)</div>
+                <audio controls style="width:100%;" preload="none">
+                  <source src="${audioUrl}" type="audio/mpeg">
+                  Your browser does not support audio playback.
+                </audio>
+              </div>`;
+            }
+            html += `</div>`;
+            return html;
+          },
+        });
+      }
+    }
+  }
+
+  // Create tab buttons
+  tabs.forEach((tab, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (i === 0 ? ' active' : '');
+    btn.textContent = tab.label;
+    btn.onclick = () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      contentEl.innerHTML = tab.render();
+    };
+    tabsEl.appendChild(btn);
+  });
+
+  // Show first tab
+  contentEl.innerHTML = tabs[0].render();
+
+  // Download buttons
+  const dlEl = document.getElementById('downloads');
+  dlEl.innerHTML = '<label style="margin-right:0.5rem;align-self:center;">Download:</label>';
+  const formats = [
+    { fmt: 'video', label: 'Video', icon: '🎬' },
+    { fmt: 'json', label: 'JSON', icon: '{}' },
+    { fmt: 'txt', label: 'TXT', icon: '📄' },
+    { fmt: 'srt', label: 'SRT', icon: '📝' },
+  ];
+  for (const f of formats) {
+    // Skip video button if no video available
+    if (f.fmt === 'video' && !data.has_video) continue;
+    const a = document.createElement('a');
+    a.className = 'btn-download';
+    a.href = `api/download/${currentJobId}/${f.fmt}`;
+    a.download = '';
+    a.innerHTML = `${f.icon} ${f.label}`;
+    dlEl.appendChild(a);
+  }
+
+  // Audio download buttons (one per language)
+  if (data.audio_files) {
+    for (const [lang, url] of Object.entries(data.audio_files)) {
+      const langName = data.translations?.[lang]?.language || lang;
+      const a = document.createElement('a');
+      a.className = 'btn-download';
+      a.href = `api/download/${currentJobId}/audio_${lang}`;
+      a.download = '';
+      a.innerHTML = `🔊 ${langName} Audio`;
+      dlEl.appendChild(a);
+    }
+  }
+
+  // Scroll to results
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── Live Preview ───────────────────────────────────────────────────
+function updateLivePreview(data) {
+  const preview = document.getElementById('live-preview');
+  preview.classList.add('active');
+
+  // Update step indicator
+  const stepLabels = {
+    'download': '📥 Downloading',
+    'transcribe': '🎤 Transcribing',
+    'translate': '🌍 Translating',
+    'tts': '🔊 Generating Voice',
+  };
+  const stepEl = document.getElementById('live-preview-step');
+  if (data.step) stepEl.textContent = stepLabels[data.step] || data.step;
+
+  // Video info (after download)
+  if (data.video_info && data.video_info.title) {
+    document.getElementById('live-video-info').style.display = 'flex';
+    document.getElementById('live-video-title').textContent = data.video_info.title;
+    document.getElementById('live-video-author').textContent = '👤 ' + (data.video_info.author || '');
+  }
+
+  // Cloned voice status (if voice cloning is in progress or done)
+  if (data.cloned_voice_id) {
+    const existing = document.getElementById('live-clone-status');
+    if (!existing) {
+      const cloneDiv = document.createElement('div');
+      cloneDiv.id = 'live-clone-status';
+      cloneDiv.className = 'live-video-info';
+      cloneDiv.style.borderLeft = '3px solid #22c55e';
+      cloneDiv.innerHTML = '<span style="font-weight:500;">🎙️ Voice cloned from original speaker</span>';
+      document.getElementById('live-video-info').after(cloneDiv);
+    }
+  }
+
+  // Transcript (after transcription)
+  if (data.preview_transcript && data.preview_transcript.segments) {
+    const section = document.getElementById('live-transcript-section');
+    if (section.style.display === 'none') {
+      section.style.display = 'block';
+      const container = document.getElementById('live-transcript');
+      container.innerHTML = '';
+      for (const seg of data.preview_transcript.segments) {
+        const div = document.createElement('div');
+        div.className = 'seg';
+        div.innerHTML = `<span class="seg-time">${formatTime(seg.start)}→${formatTime(seg.end)}</span>${escapeHtml(seg.text)}`;
+        container.appendChild(div);
+      }
+      // Auto-scroll to show latest
+      container.scrollTop = container.scrollHeight;
+    }
+  }
+
+  // Translations (incremental)
+  if (data.preview_translations) {
+    const section = document.getElementById('live-translations-section');
+    section.style.display = 'block';
+    const container = document.getElementById('live-translations');
+    container.innerHTML = '';
+    for (const [code, t] of Object.entries(data.preview_translations)) {
+      const card = document.createElement('div');
+      card.className = 'live-translation-card';
+      if (t.text) {
+        card.innerHTML = `<div class="lt-lang">🌍 ${t.language}</div><div class="lt-text">${escapeHtml(t.text)}</div>`;
+      } else if (t.error) {
+        card.innerHTML = `<div class="lt-lang">🌍 ${t.language}</div><div class="lt-pending">❌ ${escapeHtml(t.error)}</div>`;
+      } else {
+        card.innerHTML = `<div class="lt-lang">🌍 ${t.language}</div><div class="lt-pending">⏳ Translating...</div>`;
+      }
+      container.appendChild(card);
+    }
+  }
+
+  // Audio (incremental during TTS)
+  if (data.preview_audio && Object.keys(data.preview_audio).length > 0) {
+    const section = document.getElementById('live-audio-section');
+    section.style.display = 'block';
+    const container = document.getElementById('live-audio');
+    // Only add new audio items (don't re-render existing to avoid restarting playback)
+    for (const [lang, url] of Object.entries(data.preview_audio)) {
+      if (document.getElementById(`live-audio-${lang}`)) continue;
+      const langName = data.preview_translations?.[lang]?.language || lang;
+      const item = document.createElement('div');
+      item.className = 'live-audio-item';
+      item.id = `live-audio-${lang}`;
+      item.innerHTML = `<div class="la-label">🔊 ${langName}</div>
+        <audio controls preload="metadata"><source src="${url}" type="audio/mpeg"></audio>`;
+      container.appendChild(item);
+    }
+  }
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+function showError(msg) {
+  document.getElementById('error-section').style.display = 'block';
+  document.getElementById('error-message').textContent = msg;
+}
+
+function resetButton() {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = false;
+  btn.innerHTML = '<span>Start Processing</span> <span>→</span>';
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = (s % 60).toFixed(1);
+  return `${m}:${sec.padStart(4, '0')}`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+// ─── Init ──────────────────────────────────────────────────────────
+init();
+
+// Enter key to submit
+document.getElementById('url').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') startProcessing();
+});
+</script>
+</body>
+</html>

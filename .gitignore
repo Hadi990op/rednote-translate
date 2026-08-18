@@ -1,0 +1,51 @@
+# ─── Secrets & API Keys ────────────────────────────────────────────────────
+secrets/
+*.key
+*.pem
+.env
+fish_audio_api_key.txt
+
+# ─── Downloaded content (runtime data, not source) ──────────────────────────
+videos/
+output/
+downloads/
+job_state/
+
+# ─── Test artifacts ─────────────────────────────────────────────────────────
+audio_*.wav
+sample_*.mp3
+fish_voice_tests/
+comparison/
+web_*.png
+*.wav
+*.mp3
+
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ─── Virtual environments ──────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ─── IDE / Editor ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ─── Misc ──────────────────────────────────────────────────────────────────
+*.db
+*.log
+*.pid
+.cache/
+.tmp/
