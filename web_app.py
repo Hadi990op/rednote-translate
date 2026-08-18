@@ -640,9 +640,12 @@ async def translate_segments(segments: list, target_lang: str, log_fn=None) -> l
             continue
 
         # Number each segment in the batch so we can split the LLM response
+        # Include duration so LLM can calibrate translation length
         lines = []
         for si, seg in enumerate(batch):
-            lines.append(f"[{si+1}] {seg['text'].strip()}")
+            seg_dur = seg["end"] - seg["start"]
+            text = seg['text'].strip()
+            lines.append(f"[{si+1}] ({seg_dur:.1f}s) {text}")
         numbered_input = "\n".join(lines)
 
         prompt_msg = (
@@ -650,6 +653,12 @@ async def translate_segments(segments: list, target_lang: str, log_fn=None) -> l
             f"Keep the SAME numbering format [1] [2] etc. — one translated line per source line, "
             f"in the SAME ORDER. Do NOT merge or skip lines. "
             f"Output ONLY the numbered translations, nothing else.\n\n"
+            f"IMPORTANT: The number in parentheses (e.g. '(2.3s)') shows the SPEAKING TIME of that line. "
+            f"Use it to calibrate your translation length — keep it SHORT ENOUGH to be spoken in that time. "
+            f"Chinese is very compact, Urdu/Hindi is longer. You MUST compress the meaning. "
+            f"Use the SHORTEST natural phrasing. Drop filler words. Never exceed the time budget.\n"
+            f"CRITICAL: Do NOT include the time number in your output. "
+            f"Output format must be: [1] translated text only. NOT [1] (2.3s) translated text.\n\n"
             f"{numbered_input}"
         )
 
@@ -677,7 +686,10 @@ async def translate_segments(segments: list, target_lang: str, log_fn=None) -> l
         translated_map = {}
         if raw:
             for m in re.finditer(r'\[(\d+)\]\s*(.+)', raw):
-                translated_map[int(m.group(1))] = m.group(2).strip()
+                text = m.group(2).strip()
+                # Strip any leading (Xs) duration prefix that LLM might include
+                text = re.sub(r'^\([\d.]+s\)\s*', '', text)
+                translated_map[int(m.group(1))] = text
 
         # Fallback: if parsing failed or count mismatch, use Google Translate per segment
         if len(translated_map) != len(batch):
@@ -839,7 +851,8 @@ async def clone_voice_from_audio(audio_path: str, title: str, log_fn=None) -> st
 async def generate_tts_fish(text: str, lang_code: str, voice_gender: str = "female",
                              output_path: str = None, log_fn=None,
                              cloned_voice_id: str = None,
-                             emotion_tags: str = None) -> str:
+                             emotion_tags: str = None,
+                             speed: float = 1.0) -> str:
     """Generate speech using Fish Audio S2.1 Pro (human-quality, cloud API).
 
     Returns path to the generated MP3 file, or None on failure.
@@ -875,6 +888,9 @@ async def generate_tts_fish(text: str, lang_code: str, voice_gender: str = "fema
         # e.g. "[excited] This is amazing!"
         tts_text = f"{emotion_tags} {text}"
 
+    # Clamp speed to Fish Audio's accepted range (0.5 - 2.0)
+    speed = max(0.5, min(2.0, speed))
+
     payload = {
         "text": tts_text,
         "format": "mp3",
@@ -882,6 +898,10 @@ async def generate_tts_fish(text: str, lang_code: str, voice_gender: str = "fema
     }
     if reference_id:
         payload["reference_id"] = reference_id
+
+    # Add prosody speed control if not default
+    if abs(speed - 1.0) > 0.05:
+        payload["prosody"] = {"speed": speed}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -919,7 +939,8 @@ async def generate_tts_fish(text: str, lang_code: str, voice_gender: str = "fema
 
 
 async def generate_tts_edge(text: str, lang_code: str, voice_gender: str = "female",
-                              output_path: str = None, log_fn=None) -> str:
+                              output_path: str = None, log_fn=None,
+                              speed: float = 1.0) -> str:
     """Generate speech using Microsoft Edge Neural TTS (local fallback).
 
     Returns path to the generated MP3 file, or None on failure.
@@ -953,7 +974,10 @@ async def generate_tts_edge(text: str, lang_code: str, voice_gender: str = "fema
         log_fn("tts", f"Edge TTS: {lang_name} ({voice_gender})...", 0)
 
     try:
-        communicate = edge_tts.Communicate(text, voice)
+        # Edge TTS rate: -100% to +100%, 0 = normal
+        rate_percent = int((speed - 1.0) * 100)
+        rate_str = f"{rate_percent:+d}%"
+        communicate = edge_tts.Communicate(text, voice, rate=rate_str)
         await communicate.save(output_path)
 
         if log_fn:
@@ -970,13 +994,15 @@ async def generate_tts(text: str, lang_code: str, voice_gender: str = "female",
                        output_path: str = None, log_fn=None,
                        engine: str = "fish",
                        cloned_voice_id: str = None,
-                       emotion_tags: str = None) -> str:
+                       emotion_tags: str = None,
+                       speed: float = 1.0) -> str:
     """Generate natural-sounding speech from text.
 
     Args:
         engine: "fish" for Fish Audio S2.1 Pro (default), "edge" for Edge Neural TTS.
         cloned_voice_id: if set, use this cloned voice ID instead of curated voices.
         emotion_tags: if set, prepend emotion tags for drama delivery (Fish Audio only).
+        speed: TTS speech rate (0.5-2.0, 1.0=normal). Fish Audio uses prosody.speed.
     """
     if not text.strip():
         if log_fn:
@@ -989,14 +1015,15 @@ async def generate_tts(text: str, lang_code: str, voice_gender: str = "female",
             text, lang_code, voice_gender, output_path, log_fn,
             cloned_voice_id=cloned_voice_id,
             emotion_tags=emotion_tags,
+            speed=speed,
         )
         if result:
             return result
         if log_fn:
             log_fn("tts", f"Falling back to Edge TTS for {lang_code}...", -1)
-        return await generate_tts_edge(text, lang_code, voice_gender, output_path, log_fn)
+        return await generate_tts_edge(text, lang_code, voice_gender, output_path, log_fn, speed=speed)
     else:
-        return await generate_tts_edge(text, lang_code, voice_gender, output_path, log_fn)
+        return await generate_tts_edge(text, lang_code, voice_gender, output_path, log_fn, speed=speed)
 
 
 def _on_audio_ready(job_id: str, job: dict, lang_code: str, audio_path: str):
@@ -1020,11 +1047,13 @@ def _probe_audio_duration(path: str) -> float:
         return 0.0
 
 
-def _stretch_audio(input_path: str, target_duration: float, output_path: str) -> bool:
-    """Time-stretch (or shrink) audio to exactly target_duration seconds.
+def _stretch_audio(input_path: str, target_duration: float, output_path: str,
+                    max_ratio: float = 1.25, min_ratio: float = 0.8) -> bool:
+    """Time-stretch (or shrink) audio to target_duration, but ONLY with gentle ratios.
 
-    Uses ffmpeg's atempo filter (0.5x–2.0x per stage; chains for wider range).
-    Preserves pitch. Returns True on success.
+    Uses ffmpeg's atempo filter. Only stretches within [min_ratio, max_ratio] to
+    preserve voice quality. Outside that range, returns False (caller should handle
+    via TTS speed or overflow). Preserves pitch. Returns True on success.
     """
     src_dur = _probe_audio_duration(input_path)
     if src_dur <= 0 or target_duration <= 0:
@@ -1037,18 +1066,11 @@ def _stretch_audio(input_path: str, target_duration: float, output_path: str) ->
         shutil.copy(input_path, output_path)
         return True
 
-    # Build atempo chain (each stage 0.5–2.0)
-    tempos = []
-    r = ratio
-    while r > 2.0:
-        tempos.append(2.0)
-        r /= 2.0
-    while r < 0.5:
-        tempos.append(0.5)
-        r /= 0.5
-    tempos.append(round(r, 4))
-    atempo = ",".join(f"atempo={t}" for t in tempos)
+    # Only apply gentle atempo — extreme ratios sound robotic
+    if ratio > max_ratio or ratio < min_ratio:
+        return False
 
+    atempo = f"atempo={ratio:.4f}"
     try:
         subprocess.run(
             ["ffmpeg", "-y", "-i", input_path, "-filter:a", atempo,
@@ -1060,6 +1082,46 @@ def _stretch_audio(input_path: str, target_duration: float, output_path: str) ->
         return False
 
 
+def _estimate_tts_duration(text: str, lang_code: str) -> float:
+    """Rough estimate of how long TTS will take for given text.
+    Based on empirical testing with Fish Audio:
+    - Urdu/Hindi Devanagari: ~13 chars/sec (Fish Audio speaks fast)
+    - Latin scripts: ~15 chars/sec
+    """
+    if not text:
+        return 0.0
+    # Strip emotion tags
+    import re
+    clean = re.sub(r'\[.*?\]', '', text).strip()
+    # Urdu/Hindi/Arabic scripts — measured ~13 chars/sec with Fish Audio
+    # Latin scripts — ~15 chars/sec
+    rate = 13.0 if any(ord(c) > 0x0900 for c in clean) else 15.0
+    return len(clean) / rate
+
+
+def _compute_tts_speed(target_duration: float, text: str, lang_code: str) -> float:
+    """Compute optimal TTS speed so the generated audio matches target_duration.
+
+    Strategy:
+    - Estimate how long TTS will take at normal speed (1.0)
+    - If estimated > target, speed up TTS (up to 1.8x)
+    - If estimated < target, slow down TTS (down to 0.7x)
+    - Leave a small margin for atempo fine-tuning
+    """
+    est_dur = _estimate_tts_duration(text, lang_code)
+    if est_dur <= 0 or target_duration <= 0:
+        return 1.0
+
+    # We want: est_dur / speed ≈ target_duration (with 5% margin)
+    # So speed = est_dur / target_duration
+    speed = est_dur / target_duration
+
+    # Clamp to Fish Audio's useful range
+    # 0.7 = noticeable slow, 1.8 = fast but not chipmunk
+    speed = max(0.7, min(1.8, speed))
+    return round(speed, 2)
+
+
 async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: str,
                                   output_dir: Path, log_fn=None,
                                   engine: str = "fish", cloned_voice_id: str = None,
@@ -1067,17 +1129,21 @@ async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: st
                                   on_progress=None) -> str:
     """Generate a single synced dub audio track from segment-aligned translations.
 
-    For each segment:
-      1. TTS the translated text
-      2. Time-stretch the clip to match the original segment duration
-      3. Place it at the segment's start timestamp with silence padding
+    Smart approach for natural-sounding dub:
+      1. Estimate TTS duration, set prosody.speed so raw TTS ≈ original segment duration
+      2. Apply gentle atempo fine-tuning (0.8x–1.25x) only if needed
+      3. Allow slight overflow into inter-segment gaps (no hard cuts)
+      4. For segments with large gaps, let TTS play naturally (no extreme stretching)
 
     Returns path to the final mixed audio file, or None on failure.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # First pass: generate raw TTS for each segment
-    seg_clips = []  # list of (start, stretched_clip_path)
+    # Compute available gap after each segment (for overflow tolerance)
+    seg_count = len(segments)
+
+    # First pass: generate TTS for each segment with adaptive speed
+    seg_clips = []  # list of (start, clip_path, duration)
     total = len(segments)
     for i, seg in enumerate(segments):
         text = seg.get("translated", "").strip()
@@ -1091,6 +1157,9 @@ async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: st
         if emotion_mode and engine == "fish":
             emotion_tags = detect_emotion_tags(text)
 
+        # Compute TTS speed to match original segment duration
+        tts_speed = _compute_tts_speed(seg_dur, text, lang_code)
+
         raw_path = str(output_dir / f"seg_{i:04d}_raw.mp3")
         stretched_path = str(output_dir / f"seg_{i:04d}.wav")
 
@@ -1099,22 +1168,39 @@ async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: st
             log_fn=None, engine=engine,
             cloned_voice_id=cloned_voice_id,
             emotion_tags=emotion_tags,
+            speed=tts_speed,
         )
         if not result:
             if log_fn:
                 log_fn("dub", f"Segment {i+1}/{total} TTS failed, skipping", -1)
             continue
 
-        # Time-stretch to match original segment duration
-        if _stretch_audio(result, seg_dur, stretched_path):
-            seg_clips.append((seg["start"], stretched_path))
+        # Check raw TTS duration
+        raw_dur = _probe_audio_duration(result)
+
+        # Compute available gap before next segment (overflow tolerance)
+        next_start = segments[i + 1]["start"] if i + 1 < seg_count else seg["end"] + 1.0
+        available_gap = next_start - seg["start"]  # total available time
+
+        # Target duration: original seg_dur, but allow overflow into gap
+        # Use up to 90% of available gap to avoid overlapping next segment
+        effective_target = max(seg_dur, min(available_gap * 0.9, seg_dur * 1.5))
+
+        # Try gentle atempo fine-tuning
+        if _stretch_audio(result, effective_target, stretched_path):
+            final_clip = stretched_path
         else:
-            # Fallback: use raw clip even if wrong duration
-            seg_clips.append((seg["start"], result))
+            # atempo couldn't do it gently — use raw clip as-is
+            # (TTS speed already got it close)
+            final_clip = result
+
+        final_dur = _probe_audio_duration(final_clip) if final_clip == stretched_path else raw_dur
+        seg_clips.append((seg["start"], final_clip, final_dur))
 
         if log_fn and (i % 5 == 0 or i == total - 1):
             pct = int((i + 1) / total * 100)
-            log_fn("dub", f" Dubbed segment {i+1}/{total}", pct)
+            speed_str = f"speed={tts_speed:.1f}x" if abs(tts_speed - 1.0) > 0.05 else "normal"
+            log_fn("dub", f" Dubbed segment {i+1}/{total} ({speed_str})", pct)
         if on_progress:
             on_progress(int((i + 1) / total * 100))
 
@@ -1143,7 +1229,7 @@ async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: st
     inputs.append(f"-i \"{base_path}\"")
 
     # Add each segment clip as an input with adelay
-    for idx, (start, clip) in enumerate(seg_clips):
+    for idx, (start, clip, _dur) in enumerate(seg_clips):
         delay_ms = int(start * 1000)
         inputs.append(f"-i \"{clip}\"")
         # adelay applies to the clip; index+1 because base is input 0
