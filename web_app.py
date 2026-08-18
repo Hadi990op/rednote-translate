@@ -160,6 +160,7 @@ class ProcessRequest(BaseModel):
     tts_engine: str = "fish"  # "fish" (Fish Audio S2.1 Pro) or "edge" (Edge Neural TTS)
     clone_voice: bool = False  # clone voice from original video audio
     emotion_mode: bool = False  # add emotion tags for drama delivery
+    dub_video: bool = True  # compose final dubbed video (segment-synced)
 
 
 # ─── Core processing functions (adapted from CLI script) ──────────────────────
@@ -342,11 +343,13 @@ def translate_text(text: str, target_lang: str) -> str:
 
 
 # ─── Natural Drama Translation (LLM-powered) ────────────────────────────────
-DRAMA_PROMPT_PATH = Path(__file__).parent / "drama_translation_prompt.txt"
+DRAMA_PROMPT_PATH = Path(__file__).parent / "tts_friendly_prompt.txt"
 
 # Language code → natural language name for LLM prompt
 LANG_DISPLAY = {
-    "en": "English", "hi": "Hindi (Devanagari script)", "ur": "Urdu (Nastaliq script)",
+    "en": "English",
+    "hi": "Hindi (Devanagari script)",
+    "ur": "Urdu (Nastaliq script)",
     "es": "Spanish", "fr": "French", "de": "German", "ar": "Arabic",
     "ja": "Japanese", "ko": "Korean", "ru": "Russian", "pt": "Portuguese",
     "it": "Italian", "tr": "Turkish", "id": "Indonesian", "vi": "Vietnamese",
@@ -360,19 +363,29 @@ ROMAN_LANGS = {"roman-ur": "Roman Urdu (Urdu written in Latin letters)",
                "roman-hi": "Roman Hindi (Hindi written in Latin letters)"}
 
 
-def _get_llm_client():
-    """Get an OpenAI-compatible client pointed at the LibertAI API."""
-    from openai import AsyncOpenAI
-    from dotenv import load_dotenv
+# ─── Free LLM Provider (LLM7.io — no API key required) ──────────────────────
+# LLM7.io provides free OpenAI-compatible inference with no signup or API key.
+# Uses DeepSeek-V3 — high-quality multilingual model perfect for drama translation.
+LLM7_BASE_URL = "https://api.llm7.io/v1"
+LLM7_MODEL = "deepseek-v3"
 
-    load_dotenv("/opt/baal-agent/app/.env")
-    api_key = os.environ.get("LIBERTAI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("LIBERTAI_API_KEY not found in .env")
-    return AsyncOpenAI(
-        base_url="https://api.libertai.io/v1",
-        api_key=api_key,
-        timeout=120.0,
+
+def _get_llm_client():
+    """Get an OpenAI-compatible client for natural drama translation.
+
+    Uses LLM7.io (free, no API key) with DeepSeek-V3.
+
+    Returns: (client, model_name)
+    """
+    from openai import AsyncOpenAI
+
+    return (
+        AsyncOpenAI(
+            base_url=LLM7_BASE_URL,
+            api_key="unused",  # LLM7.io doesn't require a key, but SDK needs one
+            timeout=120.0,
+        ),
+        LLM7_MODEL,
     )
 
 
@@ -388,10 +401,24 @@ def _load_drama_prompt() -> str:
     )
 
 
+def _is_mostly_chinese(text: str) -> bool:
+    """Check if text is mostly Chinese characters (echo-back bug detection).
+
+    Returns True if >30% of the non-whitespace characters are CJK ideographs,
+    which means the LLM echoed back Chinese instead of translating.
+    """
+    if not text.strip():
+        return False
+    cjk_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    total = len(text.strip())
+    return total > 0 and (cjk_count / total) > 0.3
+
+
 async def translate_text_natural(text: str, target_lang: str, log_fn=None) -> str:
     """Translate Chinese text using LLM with natural drama-style translation.
 
     Falls back to Google Translate if LLM fails.
+
     """
     if not text.strip():
         return ""
@@ -402,25 +429,29 @@ async def translate_text_natural(text: str, target_lang: str, log_fn=None) -> st
     # Load the system prompt
     system_prompt = _load_drama_prompt()
 
-    # Build user message
+    # Build user message — emphasize output language to prevent Chinese echo-back
     user_msg = (
         f"Translate the following Chinese text into {lang_name}. "
         f"This is dialogue from a Chinese drama/web series. "
         f"Make it sound like natural spoken dialogue that a real person would say. "
-        f"Output ONLY the translation, nothing else.\n\n"
-        f"--- CHINESE TEXT ---\n{text}\n--- END ---"
+        f"CRITICAL: Your output MUST be written in {lang_name}. "
+        f"Do NOT output Chinese. Do NOT include any Chinese characters in your response. "
+        f"Output ONLY the {lang_name} translation, nothing else — no explanations, no notes.\n\n"
+        f"--- CHINESE TEXT TO TRANSLATE ---\n{text}\n--- END OF CHINESE TEXT ---"
     )
 
     try:
-        client = _get_llm_client()
+        client, model_name = _get_llm_client()
+        if log_fn:
+            log_fn("translate", f"Using AI model: {model_name}", -1)
         response = await client.chat.completions.create(
-            model="claw-large",
+            model=model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
             ],
             temperature=0.3,  # low temp for consistency, slight creativity
-            max_tokens=4096,
+            max_tokens=8192,  # DeepSeek-V3 uses reasoning tokens; 4096 is too small
         )
         result = response.choices[0].message.content.strip()
 
@@ -429,14 +460,20 @@ async def translate_text_natural(text: str, target_lang: str, log_fn=None) -> st
             lines = result.split("\n")
             result = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
 
+        # Guard: if LLM returned mostly Chinese (echo-back bug), fall back to Google
+        if result and _is_mostly_chinese(result):
+            if log_fn:
+                log_fn("translate", "AI returned Chinese (echo-back), using Google Translate fallback...", -1)
+            return translate_text(text, target_lang)
+
         if log_fn:
-            log_fn("translate", f"LLM translation done ({len(result)} chars)", -1)
+            log_fn("translate", f"AI translation done ({len(result)} chars)", -1)
 
         return result
 
     except Exception as e:
         if log_fn:
-            log_fn("translate", f"LLM failed ({e}), falling back to Google Translate...", -1)
+            log_fn("translate", f"AI failed ({e}), falling back to Google Translate...", -1)
         # Fallback to Google Translate
         return translate_text(text, target_lang)
 
@@ -474,6 +511,97 @@ async def translate_text_natural_chunked(text: str, target_lang: str, log_fn=Non
         results.append(translated)
 
     return " ".join(results)
+
+
+async def translate_segments(segments: list, target_lang: str, log_fn=None) -> list:
+    """Translate each Whisper segment individually so the translated text aligns
+    1:1 with the original timing. Returns a list of dicts:
+        [{"start":..,"end":..,"text": original,"translated": translated}, ...]
+
+    Batches short consecutive segments together for the LLM call to keep context,
+    then splits the result back to match the number of source segments.
+    """
+    if not segments:
+        return []
+
+    lang_name = LANG_DISPLAY.get(target_lang) or ROMAN_LANGS.get(target_lang) or target_lang
+
+    # Batch consecutive segments up to ~500 chars of Chinese text
+    batches = []
+    cur_batch, cur_len = [], 0
+    for seg in segments:
+        seg_len = len(seg.get("text", ""))
+        if cur_batch and cur_len + seg_len > 500:
+            batches.append(cur_batch)
+            cur_batch, cur_len = [], 0
+        cur_batch.append(seg)
+        cur_len += seg_len
+    if cur_batch:
+        batches.append(cur_batch)
+
+    if log_fn:
+        log_fn("translate", f"Translating {len(segments)} segments in {len(batches)} batches...", -1)
+
+    out = []
+    for bi, batch in enumerate(batches):
+        # Number each segment in the batch so we can split the LLM response
+        lines = []
+        for si, seg in enumerate(batch):
+            lines.append(f"[{si+1}] {seg['text'].strip()}")
+        numbered_input = "\n".join(lines)
+
+        prompt_msg = (
+            f"Translate each numbered Chinese line below into {lang_name}. "
+            f"Keep the SAME numbering format [1] [2] etc. — one translated line per source line, "
+            f"in the SAME ORDER. Do NOT merge or skip lines. "
+            f"Output ONLY the numbered translations, nothing else.\n\n"
+            f"{numbered_input}"
+        )
+
+        try:
+            client, model_name = _get_llm_client()
+            system_prompt = _load_drama_prompt()
+            response = await client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt_msg},
+                ],
+                temperature=0.3,
+                max_tokens=8192,
+            )
+            raw = response.choices[0].message.content.strip()
+        except Exception as e:
+            if log_fn:
+                log_fn("translate", f"Batch {bi+1} LLM failed ({e}), using Google Translate...", -1)
+            raw = None
+
+        # Parse numbered lines from response → dict {1: text, 2: text, ...}
+        translated_map = {}
+        if raw:
+            for m in re.finditer(r'\[(\d+)\]\s*(.+)', raw):
+                translated_map[int(m.group(1))] = m.group(2).strip()
+
+        # Fallback: if parsing failed or count mismatch, use Google Translate per segment
+        if len(translated_map) != len(batch):
+            if log_fn:
+                log_fn("translate", f"Batch {bi+1}: parse mismatch ({len(translated_map)}/{len(batch)}), using Google fallback", -1)
+            for si, seg in enumerate(batch):
+                translated_map[si + 1] = translate_text(seg["text"], target_lang)
+
+        # Emit aligned output
+        for si, seg in enumerate(batch):
+            out.append({
+                "start": seg["start"],
+                "end": seg["end"],
+                "text": seg["text"],
+                "translated": translated_map.get(si + 1, ""),
+            })
+
+        if log_fn:
+            log_fn("translate", f"Batch {bi+1}/{len(batches)} done", -1)
+
+    return out
 
 
 async def translate_transcript(transcript: dict, target_languages: list, log_fn,
@@ -518,6 +646,17 @@ async def translate_transcript(transcript: dict, target_languages: list, log_fn,
                 "text": translated,
                 "mode": translation_mode,
             }
+            # Also produce segment-aligned translations for dubbing (natural mode only)
+            if translation_mode == "natural" and transcript.get("segments"):
+                try:
+                    seg_translations = await translate_segments(
+                        transcript["segments"], lang_code,
+                        log_fn=lambda s, m, p: None,
+                    )
+                    translations[lang_code]["segments"] = seg_translations
+                except Exception as seg_err:
+                    if log_fn:
+                        log_fn("translate", f"Segment alignment failed for {lang_name}: {seg_err}", -1)
             if save_job_fn:
                 save_job_fn()
             log_fn("translate", f"✓ {lang_name} done", progress + max(1, int(25 / total)))
@@ -768,6 +907,204 @@ def _on_audio_ready(job_id: str, job: dict, lang_code: str, audio_path: str):
     save_job(job_id)
 
 
+# ─── Dubbing: per-segment TTS + time-stretch + video compose ──────────────────
+
+def _probe_audio_duration(path: str) -> float:
+    """Return audio duration in seconds using ffprobe."""
+    try:
+        out = subprocess.check_output(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", path],
+            stderr=subprocess.DEVNULL,
+        )
+        return float(out.decode().strip())
+    except Exception:
+        return 0.0
+
+
+def _stretch_audio(input_path: str, target_duration: float, output_path: str) -> bool:
+    """Time-stretch (or shrink) audio to exactly target_duration seconds.
+
+    Uses ffmpeg's atempo filter (0.5x–2.0x per stage; chains for wider range).
+    Preserves pitch. Returns True on success.
+    """
+    src_dur = _probe_audio_duration(input_path)
+    if src_dur <= 0 or target_duration <= 0:
+        return False
+
+    ratio = target_duration / src_dur
+    # If already close enough, just copy
+    if 0.97 <= ratio <= 1.03:
+        import shutil
+        shutil.copy(input_path, output_path)
+        return True
+
+    # Build atempo chain (each stage 0.5–2.0)
+    tempos = []
+    r = ratio
+    while r > 2.0:
+        tempos.append(2.0)
+        r /= 2.0
+    while r < 0.5:
+        tempos.append(0.5)
+        r /= 0.5
+    tempos.append(round(r, 4))
+    atempo = ",".join(f"atempo={t}" for t in tempos)
+
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", input_path, "-filter:a", atempo,
+             "-vn", output_path],
+            check=True, capture_output=True, timeout=60,
+        )
+        return Path(output_path).exists()
+    except Exception:
+        return False
+
+
+async def generate_dubbed_audio(segments: list, lang_code: str, voice_gender: str,
+                                  output_dir: Path, log_fn=None,
+                                  engine: str = "fish", cloned_voice_id: str = None,
+                                  emotion_mode: bool = False,
+                                  on_progress=None) -> str:
+    """Generate a single synced dub audio track from segment-aligned translations.
+
+    For each segment:
+      1. TTS the translated text
+      2. Time-stretch the clip to match the original segment duration
+      3. Place it at the segment's start timestamp with silence padding
+
+    Returns path to the final mixed audio file, or None on failure.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # First pass: generate raw TTS for each segment
+    seg_clips = []  # list of (start, stretched_clip_path)
+    total = len(segments)
+    for i, seg in enumerate(segments):
+        text = seg.get("translated", "").strip()
+        if not text:
+            continue
+        seg_dur = seg["end"] - seg["start"]
+        if seg_dur <= 0:
+            continue
+
+        emotion_tags = None
+        if emotion_mode and engine == "fish":
+            emotion_tags = detect_emotion_tags(text)
+
+        raw_path = str(output_dir / f"seg_{i:04d}_raw.mp3")
+        stretched_path = str(output_dir / f"seg_{i:04d}.wav")
+
+        result = await generate_tts(
+            text, lang_code, voice_gender, raw_path,
+            log_fn=None, engine=engine,
+            cloned_voice_id=cloned_voice_id,
+            emotion_tags=emotion_tags,
+        )
+        if not result:
+            if log_fn:
+                log_fn("dub", f"Segment {i+1}/{total} TTS failed, skipping", -1)
+            continue
+
+        # Time-stretch to match original segment duration
+        if _stretch_audio(result, seg_dur, stretched_path):
+            seg_clips.append((seg["start"], stretched_path))
+        else:
+            # Fallback: use raw clip even if wrong duration
+            seg_clips.append((seg["start"], result))
+
+        if log_fn and (i % 5 == 0 or i == total - 1):
+            pct = int((i + 1) / total * 100)
+            log_fn("dub", f" Dubbed segment {i+1}/{total}", pct)
+        if on_progress:
+            on_progress(int((i + 1) / total * 100))
+
+    if not seg_clips:
+        if log_fn:
+            log_fn("dub", "No segments dubbed", -1)
+        return None
+
+    # Second pass: build a single audio track using ffmpeg concat with delays
+    # Use a silent base track of full video duration, then overlay each clip at its timestamp
+    # Determine total duration from last segment end
+    last_seg = segments[-1]
+    total_duration = last_seg["end"] + 0.5
+
+    # Build ffmpeg complex filter: silent base + overlay each clip at its start time
+    # Use adelay filter for each clip, then amix all together
+    inputs = []
+    filter_parts = []
+    # Silent base track
+    base_path = str(output_dir / "_silence_base.wav")
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+         "-t", f"{total_duration}", "-c:a", "pcm_s16le", base_path],
+        check=True, capture_output=True, timeout=30,
+    )
+    inputs.append(f"-i \"{base_path}\"")
+
+    # Add each segment clip as an input with adelay
+    for idx, (start, clip) in enumerate(seg_clips):
+        delay_ms = int(start * 1000)
+        inputs.append(f"-i \"{clip}\"")
+        # adelay applies to the clip; index+1 because base is input 0
+        filter_parts.append(f"[{idx+1}:a]adelay={delay_ms}|{delay_ms}[d{idx}]")
+
+    # Mix all delayed clips + base
+    mix_inputs = "[0:a]" + "".join(f"[d{idx}]" for idx in range(len(seg_clips)))
+    mix_inputs += f"amix=inputs={len(seg_clips)+1}:duration=longest:dropout_transition=0"
+    filter_complex = ";".join(filter_parts) + ";" + mix_inputs
+
+    final_path = str(output_dir / f"dub_{lang_code}.wav")
+    cmd = f'ffmpeg -y {" ".join(inputs)} -filter_complex "{filter_complex}" -c:a pcm_s16le "{final_path}"'
+
+    if log_fn:
+        log_fn("dub", f" Mixing {len(seg_clips)} segments into final track...", 90)
+    try:
+        subprocess.run(["bash", "-c", cmd], check=True, capture_output=True, timeout=300)
+    except Exception as e:
+        if log_fn:
+            log_fn("dub", f"Mix failed: {e}", -1)
+        return None
+
+    if log_fn:
+        log_fn("dub", f"✓ Dub audio ready ({len(seg_clips)} segments)", 100)
+    return final_path
+
+
+def compose_dubbed_video(video_path: str, dub_audio_path: str, output_path: str,
+                          log_fn=None) -> bool:
+    """Replace the original video's audio with the dubbed audio track.
+
+    Uses ffmpeg to mux: original video (no audio) + dubbed audio track.
+    Returns True on success.
+    """
+    try:
+        if log_fn:
+            log_fn("compose", "🎬 Composing final dubbed video...", 0)
+        subprocess.run(
+            ["ffmpeg", "-y",
+             "-i", video_path,
+             "-i", dub_audio_path,
+             "-c:v", "copy",
+             "-c:a", "aac", "-b:a", "192k",
+             "-map", "0:v:0", "-map", "1:a:0",
+             "-shortest",
+             output_path],
+            check=True, capture_output=True, timeout=600,
+        )
+        ok = Path(output_path).exists()
+        if log_fn:
+            size_mb = Path(output_path).stat().st_size / (1024 * 1024) if ok else 0
+            log_fn("compose", f"✓ Dubbed video ready ({size_mb:.1f} MB)" if ok else "✗ Video compose failed", 100 if ok else -1)
+        return ok
+    except Exception as e:
+        if log_fn:
+            log_fn("compose", f"Video compose failed: {e}", -1)
+        return False
+
+
 # ─── Emotion Detection for Drama Mode ─────────────────────────────────────────
 
 # Keyword patterns for detecting emotions in translated text.
@@ -1015,6 +1352,38 @@ async def process_job(job_id: str, request: ProcessRequest):
             for lang_code, audio_path in audio_files.items():
                 saved[f"audio_{lang_code}"] = audio_path
 
+        # Step 4b: Compose dubbed videos (segment-synced, if enabled)
+        if request.dub_video and request.generate_audio and request.translation_mode == "natural":
+            job["dubbed_videos"] = {}
+            save_job(job_id)
+            for lang_code, trans_data in translations.items():
+                seg_translations = trans_data.get("segments")
+                if not seg_translations:
+                    if log_fn:
+                        log_fn("dub", f"Skipping {lang_code} dub — no segment translations", -1)
+                    continue
+                lang_name = SUPPORTED_LANGS.get(lang_code, lang_code)
+                log_fn("dub", f"🎬 Dubbing {lang_name} ({len(seg_translations)} segments)...", -1)
+                dub_dir = OUTPUT_DIR / f"dub_{job_id}"
+                dub_audio = await generate_dubbed_audio(
+                    seg_translations, lang_code, request.voice_gender,
+                    dub_dir, log_fn,
+                    engine=request.tts_engine,
+                    cloned_voice_id=cloned_voice_id,
+                    emotion_mode=request.emotion_mode,
+                )
+                if not dub_audio:
+                    log_fn("dub", f"✗ {lang_name} dub audio failed", -1)
+                    continue
+                # Compose final video
+                dubbed_video_path = str(dub_dir / f"dubbed_{lang_code}.mp4")
+                if compose_dubbed_video(video_data["video_path"], dub_audio, dubbed_video_path, log_fn):
+                    job["dubbed_videos"][lang_code] = dubbed_video_path
+                    saved[f"dubbed_video_{lang_code}"] = dubbed_video_path
+                    save_job(job_id)
+                else:
+                    log_fn("dub", f"✗ {lang_name} video compose failed", -1)
+
         job["files"] = saved
         job["status"] = "completed"
         job["progress"] = 100
@@ -1144,6 +1513,7 @@ async def job_status_sse(job_id: str):
                 data["transcript"] = job.get("transcript", {})
                 data["translations"] = job.get("translations", {})
                 data["has_video"] = bool(job.get("video_path") and Path(job["video_path"]).exists())
+                data["tts_engine"] = job.get("tts_engine", "edge")
                 # Audio files info: map lang_code -> download endpoint
                 audio_files = job.get("audio_files", {})
                 data["audio_files"] = {
@@ -1151,6 +1521,13 @@ async def job_status_sse(job_id: str):
                     for lang in audio_files.keys()
                 }
                 data["audio_available"] = len(audio_files) > 0
+                # Dubbed videos (segment-synced)
+                dubbed = job.get("dubbed_videos", {})
+                data["dubbed_videos"] = {
+                    lang: f"api/download/{job_id}/dubbed_video_{lang}"
+                    for lang in dubbed.keys()
+                }
+                data["dub_available"] = len(dubbed) > 0
                 data["elapsed"] = round(job.get("completed_at", 0) - job.get("started_at", 0), 1)
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
                 break
@@ -1208,6 +1585,7 @@ async def download_result(job_id: str, fmt: str):
             video_path,
             filename=Path(video_path).name,
             media_type="video/mp4",
+            headers={"Content-Disposition": f'inline; filename="{Path(video_path).name}"'},
         )
 
     if fmt not in job.get("files", {}):
@@ -1217,16 +1595,24 @@ async def download_result(job_id: str, fmt: str):
     if not file_path.exists():
         raise HTTPException(404, "File not found")
 
-    # Set proper content type for audio files
+    # Set proper content type
     if fmt.startswith("audio_"):
         media_type = "audio/mpeg"
+    elif fmt.startswith("dubbed_video_"):
+        media_type = "video/mp4"
     else:
         media_type = "application/octet-stream"
+
+    # Use inline so browsers play audio/video in-browser instead of forcing download
+    headers = {}
+    if media_type.startswith(("audio/", "video/")):
+        headers["Content-Disposition"] = f'inline; filename="{file_path.name}"'
 
     return FileResponse(
         file_path,
         filename=file_path.name,
         media_type=media_type,
+        headers=headers,
     )
 
 

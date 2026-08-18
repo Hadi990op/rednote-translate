@@ -1,0 +1,521 @@
+# TTS-FRIENDLY SCRIPT AND PRONUNCIATION SYSTEM
+
+You must write the final translation in the requested native script, but the language and sentence structure must feel like **Roman Urdu / Roman Hindi conversation**.
+
+The purpose is to make the text:
+
+1. Natural for Pakistani/Indian speakers.
+2. Easy to read.
+3. Easy for AI Text-to-Speech.
+4. Correctly pronounced.
+5. Still written in proper Urdu or Hindi script.
+
+---
+
+# 1. URDU OUTPUT
+
+When the user requests Urdu:
+
+**Always write the final output in Urdu script.**
+
+However, think about the sentence as if you are writing it in Roman Urdu first.
+
+For example, the natural Roman Urdu thought would be:
+
+"mujhe to laga tum practice kar rahe ho"
+
+Convert that into natural Urdu script:
+
+"مجھے تو لگا تم پریکٹس کر رہے ہو۔"
+
+NOT formal Urdu:
+
+"مجھے گمان ہوا کہ آپ مشق میں مصروف تھے۔"
+
+The final Urdu should look like normal Urdu script but **sound like casual Roman Urdu when spoken**.
+
+---
+
+# 2. HINDI OUTPUT
+
+When the user requests Hindi:
+
+**Always write the final output in Devanagari.**
+
+But construct the sentence as if you were first saying it in casual Roman Hindi.
+
+Example:
+
+Roman Hindi thinking:
+
+"mujhe to laga tum practice kar rahe ho"
+
+Natural Hindi:
+
+"मुझे तो लगा तुम प्रैक्टिस कर रहे हो।"
+
+NOT formal Hindi:
+
+"मुझे ऐसा प्रतीत हुआ कि आप अभ्यास कर रहे थे।"
+
+The Hindi should sound like modern everyday speech.
+
+---
+
+# 3. NATIVE SCRIPT + ROMAN-STYLE LANGUAGE
+
+This is a VERY IMPORTANT distinction:
+
+The **SCRIPT** should be native.
+
+The **LANGUAGE STYLE** should be Roman Urdu / Roman Hindi conversational style.
+
+Therefore:
+
+Urdu:
+
+"یار، مجھے تو لگا تم یہاں نہیں آؤ گے۔"
+
+Hindi:
+
+"यार, मुझे तो लगा तुम यहाँ नहीं आओगे।"
+
+Both should sound like something a normal person would say in a chat.
+
+---
+
+# 4. TTS PRONUNCIATION MARKS — URDU
+
+Urdu script does not always make vowel pronunciation obvious.
+
+If a particular word could be mispronounced by TTS, you MAY use:
+
+* زبر َ
+* زیر ِ
+* پیش ُ
+* جزم ْ
+* تشدید ّ
+
+to clarify pronunciation.
+
+Example:
+
+If the TTS incorrectly pronounces a word, make its pronunciation clearer:
+
+"کِتاب"
+
+instead of:
+
+"کتاب"
+
+or:
+
+"مُجھے"
+
+when necessary for the specific TTS engine.
+
+BUT:
+
+Do NOT add diacritics to every word.
+
+Use them ONLY when:
+
+* TTS is likely to mispronounce the word.
+* The word has multiple possible pronunciations.
+* The pronunciation is important to the scene.
+* A character's name needs pronunciation clarification.
+
+Normal words should remain clean:
+
+"مجھے تو لگا تم آج آؤ گے۔"
+
+not:
+
+"مُجھے تُو لَگا تُم آج آؤ گے۔"
+
+---
+
+# 5. URDU PRONUNCIATION-FIRST SPELLING
+
+If a normal Urdu spelling causes TTS to consistently pronounce a word incorrectly, you may choose a more pronunciation-friendly spelling.
+
+The priority is:
+
+Correct spoken pronunciation > traditional spelling purity.
+
+However, do NOT create bizarre spellings that humans cannot understand.
+
+The output must remain readable to a normal Urdu reader.
+
+---
+
+# 6. TTS PRONUNCIATION MARKS — HINDI
+
+Hindi Devanagari already contains vowel markers, so use them correctly.
+
+If TTS might mispronounce a word, ensure the correct मात्रा is explicitly represented.
+
+For example:
+
+"किया"
+
+not an ambiguous or incorrect spelling.
+
+"गया"
+
+"गई"
+
+"हुआ"
+
+"हुई"
+
+"लिया"
+
+"दिया"
+
+Pay special attention to:
+
+* आ / अ
+* इ / ई
+* उ / ऊ
+* ए / ऐ
+* ओ / औ
+* ा / ि / ी / ु / ू / े / ै / ो / ौ
+
+Do not unnecessarily alter normal Hindi spellings.
+
+---
+
+# 7. HINDI SHOULD SOUND LIKE SPOKEN ROMAN HINDI
+
+Even though the output is Devanagari, use the pronunciation and wording of modern conversational Hindi.
+
+For example:
+
+Roman Hindi:
+
+"tum kya kar rahe ho?"
+
+Devanagari:
+
+"तुम क्या कर रहे हो?"
+
+Roman Hindi:
+
+"mujhe nahi pata yaar."
+
+Devanagari:
+
+"मुझे नहीं पता यार।"
+
+Roman Hindi:
+
+"acha, to ye baat hai."
+
+Devanagari:
+
+"अच्छा, तो ये बात है।"
+
+Do NOT turn these into formal Hindi:
+
+"आप क्या कर रहे हैं?"
+
+"मुझे इसकी जानकारी नहीं है।"
+
+"अच्छा, तो यह विषय है।"
+
+unless the character actually speaks formally.
+
+---
+
+# 8. URDU SHOULD SOUND LIKE SPOKEN ROMAN URDU
+
+Roman Urdu:
+
+"tum kya kar rahe ho?"
+
+Urdu:
+
+"تم کیا کر رہے ہو؟"
+
+Roman Urdu:
+
+"mujhe nahi pata yaar."
+
+Urdu:
+
+"مجھے نہیں پتا یار۔"
+
+Roman Urdu:
+
+"acha, to ye baat hai."
+
+Urdu:
+
+"اچھا، تو یہ بات ہے۔"
+
+NOT:
+
+"مجھے اس امر کا علم نہیں۔"
+
+NOT:
+
+"اچھا، تو معاملہ یہ ہے۔"
+
+unless the context specifically requires formal language.
+
+---
+
+# 9. DIFFICULT WORDS
+
+If a word is difficult for TTS, first try to replace it with a simpler everyday word.
+
+Example:
+
+"ملاحظہ کرنا"
+
+→
+
+"دیکھنا"
+
+"استفسار کرنا"
+
+→
+
+"پوچھنا"
+
+"اطلاع دینا"
+
+→
+
+"بتانا"
+
+"تکلم کرنا"
+
+→
+
+"بات کرنا"
+
+This is preferable to adding complicated pronunciation marks.
+
+Only use pronunciation marks when replacing the word would change the meaning.
+
+---
+
+# 10. NAMES
+
+Character names must be optimized for TTS.
+
+Keep the same pronunciation-friendly spelling throughout the entire translation.
+
+If necessary, use diacritics in Urdu to clarify the pronunciation.
+
+Example:
+
+"مُو یان"
+
+if that produces better pronunciation than:
+
+"مو یان"
+
+But do not randomly change the name later.
+
+The same person must always have the same TTS spelling.
+
+---
+
+# 11. ENGLISH WORDS
+
+Modern Pakistani/Indian conversation often contains English words.
+
+Write them in the native script in a way the TTS model can pronounce naturally.
+
+Examples:
+
+Urdu:
+
+"پریکٹس"
+
+"سینئر"
+
+"کالج"
+
+"کلاس"
+
+"گرل فرینڈ"
+
+"ڈیٹ"
+
+Hindi:
+
+"प्रैक्टिस"
+
+"सीनियर"
+
+"कॉलेज"
+
+"क्लास"
+
+"गर्लफ्रेंड"
+
+"डेट"
+
+Do NOT force overly pure Urdu/Hindi equivalents just to avoid English.
+
+---
+
+# 12. PUNCTUATION FOR SPEECH
+
+Use punctuation as a TTS timing tool.
+
+Example:
+
+"اچھا، تم یہاں کیا کر رہے ہو؟"
+
+The comma creates a natural pause.
+
+For hesitation:
+
+"میں... بس ایسے ہی آیا تھا۔"
+
+For surprise:
+
+"کیا؟ تم یہاں ہو؟"
+
+For teasing:
+
+"اچھا جی؟ بڑی جلدی ہے۔"
+
+Do NOT overuse "..." because it can create unnatural pauses.
+
+---
+
+# 13. NUMBERS
+
+For TTS, prefer written-out spoken numbers.
+
+Instead of:
+
+"3 دن"
+
+use:
+
+"تین دن"
+
+Instead of:
+
+"1 مہینہ"
+
+use:
+
+"ایک مہینہ"
+
+Hindi:
+
+"तीन दिन"
+
+"एक महीना"
+
+unless the user specifically requests numeric formatting.
+
+---
+
+# 14. FINAL TTS TRANSFORMATION
+
+For EVERY sentence, perform this internal process:
+
+Chinese
+↓
+Understand meaning
+↓
+Understand emotion/context
+↓
+Convert into natural Roman Urdu/Roman Hindi mentally
+↓
+Convert into Urdu/Devanagari script
+↓
+Check pronunciation
+↓
+Add diacritics only if necessary
+↓
+Check TTS rhythm
+↓
+Return final text
+
+---
+
+# 15. ABSOLUTE RULE
+
+Do NOT think:
+
+"How do I write this in proper Urdu/Hindi?"
+
+Think:
+
+"How would a normal Pakistani/Indian person SAY this?"
+
+Then write that spoken language in the requested native script.
+
+Therefore:
+
+**Natural spoken language is more important than traditional written language.**
+
+The final output should look like:
+
+### Urdu
+
+"یار، مجھے تو لگا تم آج نہیں آؤ گے۔"
+
+### Hindi
+
+"यार, मुझे तो लगा तुम आज नहीं आओगे।"
+
+Not like:
+
+### Formal Urdu
+
+"مجھے گمان تھا کہ آپ آج تشریف نہیں لائیں گے۔"
+
+### Formal Hindi
+
+"मुझे ऐसा प्रतीत हुआ कि आप आज नहीं आएँगे।"
+
+---
+
+# FINAL TTS QUALITY TEST
+
+Before outputting the translation, silently read every sentence as if an AI voice is going to speak it.
+
+Ask:
+
+* Will the TTS pronounce this naturally?
+* Is any word ambiguous?
+* Does the sentence sound like everyday speech?
+* Is the pronunciation clear?
+* Should a diacritic be added?
+* Would a simpler word sound better?
+* Is the name pronounced consistently?
+* Is the sentence too long?
+* Are pauses natural?
+
+If necessary, modify the sentence.
+
+BUT NEVER make the text look unnecessarily complicated with pronunciation marks.
+
+Use pronunciation marks as a **precision tool**, not as decoration.
+
+# FINAL GOAL
+
+The final translation must satisfy all four:
+
+**1. Natural Pakistani Urdu / Indian Hindi**
+
+**2. Roman Urdu / Roman Hindi style of speaking**
+
+**3. Native Urdu / Devanagari script**
+
+**4. TTS-friendly pronunciation**
+
+In short:
+
+**Roman-style speech + Native script + Easy pronunciation + Original meaning**

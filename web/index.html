@@ -799,6 +799,10 @@ footer a { color: var(--accent); text-decoration: none; }
       <input type="checkbox" id="emotion-mode" style="width:18px; height:18px; cursor:pointer;">
       <label for="emotion-mode" style="cursor:pointer; margin:0;">🎭 Emotion mode (drama delivery)</label>
     </div>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <input type="checkbox" id="dub-video" checked style="width:18px; height:18px; cursor:pointer;">
+      <label for="dub-video" style="cursor:pointer; margin:0;">🎬 Compose dubbed video (segment-synced)</label>
+    </div>
   </div>
 
   <small style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 4px; display: block;" id="voice-clone-hint">
@@ -888,6 +892,13 @@ footer a { color: var(--accent); text-decoration: none; }
 
   <!-- Downloads -->
   <div class="downloads" id="downloads"></div>
+
+  <!-- Dubbed Video Section (segment-synced, native script) -->
+  <div id="dubbed-video-section" style="display:none;margin-top:24px;">
+    <h3 style="margin-bottom:12px;">🎬 Dubbed Videos</h3>
+    <p style="opacity:0.7;margin-bottom:16px;">Segment-synced voice-over — each line matches the original video timing.</p>
+    <div id="dubbed-videos"></div>
+  </div>
 </div>
 
 <!-- Footer -->
@@ -1005,6 +1016,8 @@ async function startProcessing() {
   document.getElementById('live-transcript').innerHTML = '';
   document.getElementById('live-translations').innerHTML = '';
   document.getElementById('live-audio').innerHTML = '';
+  document.getElementById('dubbed-video-section').style.display = 'none';
+  document.getElementById('dubbed-videos').innerHTML = '';
   // Remove clone status if present
   const cloneStatus = document.getElementById('live-clone-status');
   if (cloneStatus) cloneStatus.remove();
@@ -1023,6 +1036,7 @@ async function startProcessing() {
         tts_engine: document.getElementById('tts-engine').value,
         clone_voice: document.getElementById('clone-voice').checked,
         emotion_mode: document.getElementById('emotion-mode').checked,
+        dub_video: document.getElementById('dub-video').checked,
       }),
     });
 
@@ -1280,6 +1294,39 @@ function showResults(data) {
     }
   }
 
+  // Dubbed video player + download (segment-synced dub)
+  if (data.dubbed_videos && Object.keys(data.dubbed_videos).length > 0) {
+    const dubSection = document.getElementById('dubbed-video-section');
+    if (dubSection) {
+      dubSection.style.display = 'block';
+      const container = document.getElementById('dubbed-videos');
+      container.innerHTML = '';
+      for (const [lang, url] of Object.entries(data.dubbed_videos)) {
+        const langName = data.translations?.[lang]?.language || lang;
+        const item = document.createElement('div');
+        item.className = 'dubbed-video-item';
+        item.innerHTML = `<div class="dv-label">🎬 ${langName} Dubbed Video</div>
+          <video controls preload="metadata" style="width:100%;max-width:480px;border-radius:12px;">
+            <source src="${url}" type="video/mp4">
+          </video>
+          <a class="btn-download" href="${url}" download style="margin-top:8px;display:inline-block;">⬇️ Download ${langName} Video</a>`;
+        container.appendChild(item);
+      }
+    }
+    // Also add download buttons
+    for (const [lang, url] of Object.entries(data.dubbed_videos)) {
+      const langName = data.translations?.[lang]?.language || lang;
+      if (!dlEl.querySelector(`a[href*="dubbed_video_${lang}"]`)) {
+        const a = document.createElement('a');
+        a.className = 'btn-download';
+        a.href = `api/download/${currentJobId}/dubbed_video_${lang}`;
+        a.download = '';
+        a.innerHTML = `🎬 ${langName} Dubbed Video`;
+        dlEl.appendChild(a);
+      }
+    }
+  }
+
   // Scroll to results
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1295,6 +1342,8 @@ function updateLivePreview(data) {
     'transcribe': '🎤 Transcribing',
     'translate': '🌍 Translating',
     'tts': '🔊 Generating Voice',
+    'dub': '🎬 Dubbing Video',
+    'compose': '🎬 Composing Video',
   };
   const stepEl = document.getElementById('live-preview-step');
   if (data.step) stepEl.textContent = stepLabels[data.step] || data.step;
