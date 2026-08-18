@@ -1,0 +1,3 @@
+[submodule "vendor/XHS-Downloader"]
+	path = vendor/XHS-Downloader
+	url = https://github.com/JoeanAmier/XHS-Downloader.git

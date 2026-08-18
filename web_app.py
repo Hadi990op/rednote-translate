@@ -29,11 +29,17 @@ from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
-WORKSPACE = Path("/opt/baal-agent/workspace/rednote_downloads")
-XHS_DOWNLOADER_PATH = Path("/opt/baal-agent/workspace/XHS-Downloader")
+WORKSPACE = Path(os.environ.get("REDNOTE_WORKSPACE", "/opt/baal-agent/workspace/rednote_downloads"))
+XHS_DOWNLOADER_PATH = Path(os.environ.get("XHS_DOWNLOADER_PATH", "/opt/baal-agent/workspace/XHS-Downloader"))
 VIDEOS_DIR = WORKSPACE / "videos"
 OUTPUT_DIR = WORKSPACE / "output"
-WEB_DIR = WORKSPACE / "web"
+# Frontend lives next to this source file (shipped with the repo), not in the
+# runtime data workspace. Resolve relative to __file__ so it works in Docker.
+APP_DIR = Path(__file__).resolve().parent
+WEB_DIR = APP_DIR / "web"
+if not WEB_DIR.exists():
+    # Fallback: legacy install layout where web/ lives under WORKSPACE
+    WEB_DIR = WORKSPACE / "web"
 
 sys.path.insert(0, str(XHS_DOWNLOADER_PATH))
 
@@ -100,7 +106,7 @@ TTS_VOICES = {
 }
 
 # Fish Audio API key
-FISH_API_KEY_FILE = Path("/opt/baal-agent/workspace/secrets/fish_audio_api_key.txt")
+FISH_API_KEY_FILE = Path(os.environ.get("SECRETS_DIR", "/opt/baal-agent/workspace/secrets")) / "fish_audio_api_key.txt"
 
 
 def _load_fish_api_key() -> str:
@@ -370,7 +376,7 @@ ROMAN_LANGS = {"roman-ur": "Roman Urdu (Urdu written in Latin letters)",
 
 AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
 AGNES_MODEL = "agnes-2.0-flash"
-AGNES_API_KEY_PATH = Path("/opt/baal-agent/workspace/secrets/agnes_api_key.txt")
+AGNES_API_KEY_PATH = Path(os.environ.get("SECRETS_DIR", "/opt/baal-agent/workspace/secrets")) / "agnes_api_key.txt"
 
 LLM7_BASE_URL = "https://api.llm7.io/v1"
 LLM7_MODEL = "deepseek-v3"
@@ -1815,4 +1821,4 @@ async def index():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=9100)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 9100)))

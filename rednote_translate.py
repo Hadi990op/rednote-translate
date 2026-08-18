@@ -23,8 +23,8 @@ import time
 from pathlib import Path
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
-WORKSPACE = Path("/opt/baal-agent/workspace/rednote_downloads")
-XHS_DOWNLOADER_PATH = Path("/opt/baal-agent/workspace/XHS-Downloader")
+WORKSPACE = Path(os.environ.get("REDNOTE_WORKSPACE", "/opt/baal-agent/workspace/rednote_downloads"))
+XHS_DOWNLOADER_PATH = Path(os.environ.get("XHS_DOWNLOADER_PATH", "/opt/baal-agent/workspace/XHS-Downloader"))
 VIDEOS_DIR = WORKSPACE / "videos"
 OUTPUT_DIR = WORKSPACE / "output"
 
