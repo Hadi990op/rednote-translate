@@ -1,10 +1,8 @@
 # ─── RedNote Translate — Docker Image ─────────────────────────────────────────
-# Multi-stage build: heavy deps installed once, final image kept lean.
-#
-# Target platforms (free always-on):
-#   - Hugging Face Spaces (Docker SDK, 16GB RAM, 2 vCPU)  ← primary
-#   - Koyeb free instance (512MB RAM — too small for Whisper, skip)
-#   - Any Docker host
+# Portable image that runs on:
+#   - Hugging Face Spaces (Docker SDK, port 7860, user ID 1000)  ← primary free target
+#   - Oracle Cloud Always Free (ARM Ampere A1, 24GB RAM)         ← best free always-on
+#   - Any Docker host (fly.io, Render, local, etc.)
 #
 # Build:  docker build -t rednote-translate .
 # Run:    docker run -p 7860:7860 -e PORT=7860 rednote-translate
@@ -15,7 +13,7 @@ FROM python:3.11-slim AS base
 # ─── System deps ────────────────────────────────────────────────────────────
 # ffmpeg: audio extraction for Whisper transcription
 # git:    XHS-Downloader is a git submodule
-# curl:   fallback video downloader
+# curl:   fallback video downloader + healthcheck
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ffmpeg \
@@ -25,30 +23,33 @@ RUN apt-get update && \
         build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# ─── Create non-root user (Hugging Face Spaces requires UID 1000) ────────────
+RUN useradd -m -u 1000 user
+
+WORKDIR /home/user/app
 
 # ─── Python dependencies ─────────────────────────────────────────────────────
 # Install XHS-Downloader deps first (submodule), then project deps.
-COPY vendor/XHS-Downloader/requirements.txt /app/vendor/XHS-Downloader/requirements.txt
-RUN pip install --no-cache-dir -r /app/vendor/XHS-Downloader/requirements.txt
+COPY --chown=user vendor/XHS-Downloader/requirements.txt /home/user/app/vendor/XHS-Downloader/requirements.txt
+USER user
+RUN pip install --no-cache-dir -r /home/user/app/vendor/XHS-Downloader/requirements.txt
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY --chown=user requirements.txt /home/user/app/requirements.txt
+RUN pip install --no-cache-dir -r /home/user/app/requirements.txt
 
 # ─── Application code ────────────────────────────────────────────────────────
-# Copy the full project (submodules already vendored in vendor/)
-COPY . /app
+USER root
+COPY --chown=user . /home/user/app
+USER user
 
-# Paths are env-driven; default to /app/data for persistence inside the container
-ENV REDNOTE_WORKSPACE=/app/data \
-    XHS_DOWNLOADER_PATH=/app/vendor/XHS-Downloader \
-    SECRETS_DIR=/app/secrets \
+# Paths are env-driven; default to ~/data for persistence inside the container
+ENV REDNOTE_WORKSPACE=/home/user/data \
+    XHS_DOWNLOADER_PATH=/home/user/app/vendor/XHS-Downloader \
+    SECRETS_DIR=/home/user/secrets \
     PYTHONUNBUFFERED=1 \
     PORT=7860
 
-# HF Spaces expects the app on port 7860. We default to that but allow override.
-# The web_app.py main block reads $PORT and binds 0.0.0.0.
-RUN mkdir -p /app/data /app/secrets
+RUN mkdir -p /home/user/data /home/user/secrets
 
 EXPOSE 7860
 

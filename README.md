@@ -1,3 +1,13 @@
+---
+title: RedNote Translate
+emoji: 🎬
+colorFrom: red
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🎬 RedNote Translate
 
 **Download RedNote (XiaoHongShu) videos, transcribe Chinese audio, translate to multiple languages, and generate natural-sounding voice audio with voice cloning & emotion modes.**
