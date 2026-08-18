@@ -363,27 +363,58 @@ ROMAN_LANGS = {"roman-ur": "Roman Urdu (Urdu written in Latin letters)",
                "roman-hi": "Roman Hindi (Hindi written in Latin letters)"}
 
 
-# ─── Free LLM Provider (LLM7.io — no API key required) ──────────────────────
-# LLM7.io provides free OpenAI-compatible inference with no signup or API key.
-# Uses DeepSeek-V3 — high-quality multilingual model perfect for drama translation.
+# ─── LLM Providers ──────────────────────────────────────────────────────────
+# Primary: Agnes AI (agnes-2.0-flash) — requires API key
+# Fallback: LLM7.io (deepseek-v3) — free, no API key
+# Final fallback: Google Translate
+
+AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
+AGNES_MODEL = "agnes-2.0-flash"
+AGNES_API_KEY_PATH = Path("/opt/baal-agent/workspace/secrets/agnes_api_key.txt")
+
 LLM7_BASE_URL = "https://api.llm7.io/v1"
 LLM7_MODEL = "deepseek-v3"
+
+
+def _get_agnes_api_key() -> str | None:
+    """Load Agnes AI API key from secrets file."""
+    try:
+        if AGNES_API_KEY_PATH.exists():
+            key = AGNES_API_KEY_PATH.read_text(encoding="utf-8").strip()
+            if key and key.startswith("sk-"):
+                return key
+    except Exception:
+        pass
+    return None
 
 
 def _get_llm_client():
     """Get an OpenAI-compatible client for natural drama translation.
 
-    Uses LLM7.io (free, no API key) with DeepSeek-V3.
+    Tries Agnes AI first (if API key available), falls back to LLM7.io (free).
 
     Returns: (client, model_name)
     """
     from openai import AsyncOpenAI
 
+    # Primary: Agnes AI
+    agnes_key = _get_agnes_api_key()
+    if agnes_key:
+        return (
+            AsyncOpenAI(
+                base_url=AGNES_BASE_URL,
+                api_key=agnes_key,
+                timeout=45.0,
+            ),
+            AGNES_MODEL,
+        )
+
+    # Fallback: LLM7.io (free, no key)
     return (
         AsyncOpenAI(
             base_url=LLM7_BASE_URL,
             api_key="unused",  # LLM7.io doesn't require a key, but SDK needs one
-            timeout=120.0,
+            timeout=30.0,  # short timeout — if LLM7.io is slow/rate-limited, fall back fast
         ),
         LLM7_MODEL,
     )
@@ -401,6 +432,45 @@ def _load_drama_prompt() -> str:
     )
 
 
+async def _llm_chat_with_retry(client, model_name, messages, log_fn=None,
+                                max_retries=2, base_delay=10, **kwargs):
+    """Call LLM with retry on rate-limit (429) or timeout.
+
+    LLM7.io has a concurrent request limit. On 429 or timeout, we wait
+    (with backoff) and retry. Falls through to caller's
+    exception handler if all retries fail, which then uses Google Translate.
+    """
+    import asyncio
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            response = await client.chat.completions.create(
+                model=model_name, messages=messages, **kwargs,
+            )
+            return response
+        except Exception as e:
+            last_err = e
+            err_str = str(e).lower()
+            # Retry on rate-limit, timeout, or connection errors
+            should_retry = (
+                "429" in err_str or
+                "rate" in err_str or
+                "timeout" in err_str or
+                "timed out" in err_str or
+                "connection" in err_str or
+                "concurrent" in err_str
+            )
+            if not should_retry or attempt == max_retries - 1:
+                raise
+            delay = base_delay * (attempt + 1)  # 10, 20 seconds
+            if log_fn:
+                log_fn("translate",
+                       f"LLM rate-limit/timeout (attempt {attempt+1}/{max_retries}), "
+                       f"retrying in {delay}s...", -1)
+            await asyncio.sleep(delay)
+    raise last_err
+
+
 def _is_mostly_chinese(text: str) -> bool:
     """Check if text is mostly Chinese characters (echo-back bug detection).
 
@@ -414,14 +484,23 @@ def _is_mostly_chinese(text: str) -> bool:
     return total > 0 and (cjk_count / total) > 0.3
 
 
+# Global flag: once LLM7.io fails, skip LLM for rest of the job and use Google
+_LLM_DISABLED = False
+
+
 async def translate_text_natural(text: str, target_lang: str, log_fn=None) -> str:
     """Translate Chinese text using LLM with natural drama-style translation.
 
     Falls back to Google Translate if LLM fails.
 
     """
+    global _LLM_DISABLED
     if not text.strip():
         return ""
+
+    # If LLM was disabled due to repeated failures, use Google directly
+    if _LLM_DISABLED:
+        return translate_text(text, target_lang)
 
     # Determine target language name
     lang_name = LANG_DISPLAY.get(target_lang) or ROMAN_LANGS.get(target_lang) or target_lang
@@ -444,12 +523,13 @@ async def translate_text_natural(text: str, target_lang: str, log_fn=None) -> st
         client, model_name = _get_llm_client()
         if log_fn:
             log_fn("translate", f"Using AI model: {model_name}", -1)
-        response = await client.chat.completions.create(
-            model=model_name,
+        response = await _llm_chat_with_retry(
+            client, model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
             ],
+            log_fn=log_fn,
             temperature=0.3,  # low temp for consistency, slight creativity
             max_tokens=8192,  # DeepSeek-V3 uses reasoning tokens; 4096 is too small
         )
@@ -472,8 +552,9 @@ async def translate_text_natural(text: str, target_lang: str, log_fn=None) -> st
         return result
 
     except Exception as e:
+        _LLM_DISABLED = True  # disable LLM for rest of this job
         if log_fn:
-            log_fn("translate", f"AI failed ({e}), falling back to Google Translate...", -1)
+            log_fn("translate", f"AI failed ({e}), falling back to Google Translate (LLM disabled for this job)...", -1)
         # Fallback to Google Translate
         return translate_text(text, target_lang)
 
@@ -521,6 +602,7 @@ async def translate_segments(segments: list, target_lang: str, log_fn=None) -> l
     Batches short consecutive segments together for the LLM call to keep context,
     then splits the result back to match the number of source segments.
     """
+    global _LLM_DISABLED
     if not segments:
         return []
 
@@ -544,6 +626,19 @@ async def translate_segments(segments: list, target_lang: str, log_fn=None) -> l
 
     out = []
     for bi, batch in enumerate(batches):
+        # If LLM is disabled (previous failures), use Google Translate directly
+        if _LLM_DISABLED:
+            for si, seg in enumerate(batch):
+                out.append({
+                    "start": seg["start"],
+                    "end": seg["end"],
+                    "text": seg["text"],
+                    "translated": translate_text(seg["text"], target_lang),
+                })
+            if log_fn and bi == 0:
+                log_fn("translate", f"LLM disabled — using Google Translate for all segments", -1)
+            continue
+
         # Number each segment in the batch so we can split the LLM response
         lines = []
         for si, seg in enumerate(batch):
@@ -561,17 +656,19 @@ async def translate_segments(segments: list, target_lang: str, log_fn=None) -> l
         try:
             client, model_name = _get_llm_client()
             system_prompt = _load_drama_prompt()
-            response = await client.chat.completions.create(
-                model=model_name,
+            response = await _llm_chat_with_retry(
+                client, model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt_msg},
                 ],
+                log_fn=log_fn,
                 temperature=0.3,
                 max_tokens=8192,
             )
             raw = response.choices[0].message.content.strip()
         except Exception as e:
+            _LLM_DISABLED = True  # disable LLM for rest of job
             if log_fn:
                 log_fn("translate", f"Batch {bi+1} LLM failed ({e}), using Google Translate...", -1)
             raw = None
@@ -1268,6 +1365,8 @@ def _srt_time(seconds):
 
 # ─── Background processing ───────────────────────────────────────────────────
 async def process_job(job_id: str, request: ProcessRequest):
+    global _LLM_DISABLED
+    _LLM_DISABLED = False  # reset LLM availability for each new job
     job = jobs[job_id]
     job["status"] = "processing"
     job["started_at"] = time.time()
